@@ -249,7 +249,29 @@ async fn cancel_interaction(interaction_id: &str) -> Result<InteractionResponse>
     Ok(data)
 }
 
-fn format_response(response: &InteractionResponse, format: &OutputFormat) -> String {
+async fn resolve_redirect_url(url: String) -> String {
+    if !url.contains("vertexaisearch.cloud.google.com/grounding-api-redirect") {
+        return url;
+    }
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(5))
+        .build();
+
+    if let Ok(client) = client {
+        if let Ok(response) = client.head(&url).send().await {
+            if let Some(location) = response.headers().get("location") {
+                if let Ok(resolved) = location.to_str() {
+                    return resolved.to_string();
+                }
+            }
+        }
+    }
+    url
+}
+
+async fn format_response(response: &InteractionResponse, format: &OutputFormat) -> String {
     match format {
         OutputFormat::Json => serde_json::to_string_pretty(response).unwrap_or_default(),
         OutputFormat::Text => {
@@ -275,16 +297,17 @@ fn format_response(response: &InteractionResponse, format: &OutputFormat) -> Str
                 }
             }
 
-            // Add sources
-            let mut sources: Vec<String> = Vec::new();
+            // Collect sources
+            let mut sources: Vec<(String, String)> = Vec::new(); // (title, url)
             if let Some(outputs) = &response.outputs {
                 for out in outputs {
                     // From annotations
                     if let Some(anns) = &out.annotations {
                         for ann in anns {
                             if let Some(source) = &ann.source {
-                                if !sources.contains(source) {
-                                    sources.push(source.clone());
+                                let entry = ("Source".to_string(), source.clone());
+                                if !sources.iter().any(|(_, u)| u == source) {
+                                    sources.push(entry);
                                 }
                             }
                         }
@@ -294,10 +317,9 @@ fn format_response(response: &InteractionResponse, format: &OutputFormat) -> Str
                         if let Some(results) = &out.result {
                             for result in results {
                                 if let Some(url) = &result.url {
-                                    let title = result.title.as_deref().unwrap_or("Untitled");
-                                    let formatted = format!("[{}]({})", title, url);
-                                    if !sources.contains(&formatted) {
-                                        sources.push(formatted);
+                                    let title = result.title.clone().unwrap_or_else(|| "Untitled".to_string());
+                                    if !sources.iter().any(|(_, u)| u == url) {
+                                        sources.push((title, url.clone()));
                                     }
                                 }
                             }
@@ -306,10 +328,25 @@ fn format_response(response: &InteractionResponse, format: &OutputFormat) -> Str
                 }
             }
 
+            // Resolve redirect URLs in parallel
             if !sources.is_empty() {
+                let resolve_futures: Vec<_> = sources
+                    .iter()
+                    .map(|(title, url)| {
+                        let title = title.clone();
+                        let url = url.clone();
+                        async move {
+                            let resolved = resolve_redirect_url(url).await;
+                            (title, resolved)
+                        }
+                    })
+                    .collect();
+
+                let resolved_sources = futures::future::join_all(resolve_futures).await;
+
                 output.push_str("\n\nSources:\n");
-                for (i, source) in sources.iter().enumerate() {
-                    output.push_str(&format!("{}. {}\n", i + 1, source));
+                for (i, (title, url)) in resolved_sources.iter().enumerate() {
+                    output.push_str(&format!("{}. [{}]({})\n", i + 1, title, url));
                 }
             }
 
@@ -425,6 +462,6 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     };
 
-    println!("{}", format_response(&result, &cli.output));
+    println!("{}", format_response(&result, &cli.output).await);
     Ok(())
 }

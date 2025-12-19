@@ -139,6 +139,64 @@ def _parse_interaction_response(data: dict) -> dict:
     return result
 
 
+def _resolve_redirect_url(url: str) -> str:
+    """Resolve Google's grounding redirect URLs to actual source URLs."""
+    if not url or "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
+        return url
+
+    try:
+        with httpx.Client(timeout=5.0, follow_redirects=False) as client:
+            response = client.head(url)
+            if response.status_code in (301, 302, 303, 307, 308):
+                return response.headers.get("location", url)
+    except Exception:
+        pass
+    return url
+
+
+def _resolve_all_urls(sources: list) -> list:
+    """Resolve all redirect URLs in parallel."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Extract URLs that need resolving
+    urls_to_resolve = []
+    for source in sources:
+        if isinstance(source, dict):
+            url = source.get("url", "")
+        else:
+            url = source
+        if url and "vertexaisearch.cloud.google.com/grounding-api-redirect" in url:
+            urls_to_resolve.append(url)
+
+    if not urls_to_resolve:
+        return sources
+
+    # Resolve all in parallel
+    url_map = {}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_resolve_redirect_url, url): url for url in urls_to_resolve}
+        for future in as_completed(futures):
+            original_url = futures[future]
+            try:
+                url_map[original_url] = future.result()
+            except Exception:
+                url_map[original_url] = original_url
+
+    # Apply resolved URLs
+    resolved = []
+    for source in sources:
+        if isinstance(source, dict):
+            url = source.get("url", "")
+            resolved.append({
+                "title": source.get("title", "Untitled"),
+                "url": url_map.get(url, url)
+            })
+        else:
+            resolved.append(url_map.get(source, source))
+
+    return resolved
+
+
 def _format_response(result: dict) -> str:
     """Format the parsed result into a readable string."""
     if "error" in result:
@@ -146,11 +204,12 @@ def _format_response(result: dict) -> str:
 
     output = [result.get("text", "")]
 
-    # Add sources
+    # Add sources (resolve redirect URLs in parallel)
     sources = result.get("sources", [])
     if sources:
+        resolved_sources = _resolve_all_urls(sources)
         output.append("\n\nSources:")
-        for i, source in enumerate(sources, 1):
+        for i, source in enumerate(resolved_sources, 1):
             if isinstance(source, dict):
                 title = source.get("title", "Untitled")
                 url = source.get("url", "")
