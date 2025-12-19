@@ -59,44 +59,12 @@ enum Commands {
         #[arg(short, long)]
         interaction: Option<String>,
     },
-    /// Continue previous conversation
-    FollowUp {
-        query: String,
-        #[arg(short, long)]
-        interaction: String,
-        #[arg(long, default_value = "medium")]
-        thinking_level: ThinkingLevel,
-    },
-    /// Check status of async interaction
-    Status { interaction_id: String },
-    /// Cancel async interaction
-    Cancel { interaction_id: String },
 }
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 enum OutputFormat {
     Text,
     Json,
-}
-
-#[derive(Clone, Debug, clap::ValueEnum, Serialize)]
-#[serde(rename_all = "lowercase")]
-enum ThinkingLevel {
-    Minimal,
-    Low,
-    Medium,
-    High,
-}
-
-impl std::fmt::Display for ThinkingLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ThinkingLevel::Minimal => write!(f, "minimal"),
-            ThinkingLevel::Low => write!(f, "low"),
-            ThinkingLevel::Medium => write!(f, "medium"),
-            ThinkingLevel::High => write!(f, "high"),
-        }
-    }
 }
 
 #[derive(Serialize)]
@@ -213,37 +181,6 @@ async fn create_interaction(
 
     let elapsed = start.elapsed();
     eprintln!("Request completed in {:.2}s", elapsed.as_secs_f64());
-
-    let data: InteractionResponse = response.json().await.context("Failed to parse response")?;
-    Ok(data)
-}
-
-async fn get_interaction(interaction_id: &str) -> Result<InteractionResponse> {
-    let api_key = get_api_key()?;
-    let client = reqwest::Client::new();
-
-    let response = client
-        .get(format!("{}/{}", INTERACTIONS_ENDPOINT, interaction_id))
-        .header("x-goog-api-key", &api_key)
-        .send()
-        .await
-        .context("Failed to send request")?;
-
-    let data: InteractionResponse = response.json().await.context("Failed to parse response")?;
-    Ok(data)
-}
-
-async fn cancel_interaction(interaction_id: &str) -> Result<InteractionResponse> {
-    let api_key = get_api_key()?;
-    let client = reqwest::Client::new();
-
-    let response = client
-        .post(format!("{}/{}/cancel", INTERACTIONS_ENDPOINT, interaction_id))
-        .header("x-goog-api-key", &api_key)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .context("Failed to send request")?;
 
     let data: InteractionResponse = response.json().await.context("Failed to parse response")?;
     Ok(data)
@@ -439,23 +376,6 @@ async fn main() -> Result<()> {
                 )
                 .await?
             }
-            Commands::FollowUp {
-                query,
-                interaction,
-                thinking_level,
-            } => {
-                create_interaction(
-                    query,
-                    &thinking_level.to_string(),
-                    Some(interaction),
-                    None,
-                    8192,
-                    false, // blocking
-                )
-                .await?
-            }
-            Commands::Status { interaction_id } => get_interaction(interaction_id).await?,
-            Commands::Cancel { interaction_id } => cancel_interaction(interaction_id).await?,
         }
     } else {
         eprintln!("No command or query provided. Use --help for usage.");
