@@ -158,16 +158,9 @@ def _format_response(result: dict) -> str:
             else:
                 output.append(f"{i}. {source}")
 
-    # Add metadata
+    # Add follow-up instructions
     output.append("\n---")
-    output.append(f"interaction_id: {result.get('interaction_id', 'N/A')}")
-
-    usage = result.get("usage", {})
-    if usage:
-        tokens = f"{usage.get('total_input_tokens', 0)} in, {usage.get('total_output_tokens', 0)} out"
-        if usage.get('total_reasoning_tokens'):
-            tokens += f", {usage['total_reasoning_tokens']} reasoning"
-        output.append(f"tokens: {tokens}")
+    output.append(f"To follow up, use interaction_id: {result.get('interaction_id', 'N/A')}")
 
     return "\n".join(output)
 
@@ -221,14 +214,15 @@ def ask(
     Get grounded answers with balanced reasoning.
 
     Model automatically searches the web when needed for current information.
+    To follow up on a previous response, pass the interaction_id from that response.
 
     Args:
         query: Your question
-        interaction_id: Previous interaction ID to continue conversation (optional)
+        interaction_id: Pass the interaction_id from a previous response to continue that conversation
         max_tokens: Maximum response length (default: 8192)
 
     Returns:
-        AI-generated answer with source citations and interaction_id for follow-ups
+        Answer with sources. Use the returned interaction_id to ask follow-up questions.
     """
     result = _create_interaction(
         input_content=query,
@@ -251,14 +245,15 @@ def ask_thinking(
     Get answers with deep reasoning for complex problems.
 
     Uses high thinking level for multi-step analysis and complex questions.
+    To follow up on a previous response, pass the interaction_id from that response.
 
     Args:
         query: Your complex question or problem
-        interaction_id: Previous interaction ID to continue conversation (optional)
+        interaction_id: Pass the interaction_id from a previous response to continue that conversation
         max_tokens: Maximum response length (default: 16384)
 
     Returns:
-        Detailed answer with reasoning and source citations
+        Detailed answer with reasoning. Use the returned interaction_id to ask follow-up questions.
     """
     result = _create_interaction(
         input_content=query,
@@ -266,35 +261,6 @@ def ask_thinking(
         previous_interaction_id=interaction_id,
         max_tokens=max_tokens,
         system_instruction="Think step by step. Be thorough and cite sources.",
-    )
-
-    return _format_response(result)
-
-
-@mcp.tool
-def follow_up(
-    query: str,
-    interaction_id: str,
-    thinking_level: Literal["minimal", "low", "medium", "high"] = "medium",
-) -> str:
-    """
-    Continue a previous conversation with full context.
-
-    The model remembers the previous interaction - no need to repeat context.
-
-    Args:
-        query: Your follow-up question
-        interaction_id: ID from the previous interaction
-        thinking_level: Thinking depth - minimal, low, medium (default), or high
-
-    Returns:
-        Answer with context from previous interaction
-    """
-    result = _create_interaction(
-        input_content=query,
-        thinking_level=thinking_level,
-        previous_interaction_id=interaction_id,
-        max_tokens=8192,
     )
 
     return _format_response(result)
