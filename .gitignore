@@ -1,6 +1,10 @@
 # Environment variables
 .env
 
+# Rust
+target/
+Cargo.lock
+
 # Python
 __pycache__/
 *.py[cod]

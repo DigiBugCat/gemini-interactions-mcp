@@ -1,54 +1,132 @@
-# Gemini Interactions MCP Server
+# Gemini Interactions MCP
 
-A FastMCP server that provides web search and grounded AI answers using Google's Gemini API with Google Search grounding.
+Two independent tools for stateful Gemini interactions with Google Search grounding:
+
+1. **CLI Client (Rust)** - Standalone `gemini-ask` binary that calls Gemini API directly
+2. **MCP Server (Python)** - FastMCP backend for tool-based integrations (Claude Desktop, etc.)
 
 ## Features
 
-- **`ask`** - Get AI-synthesized answers grounded with Google Search using Gemini 3 Flash
-- **`ask_thinking`** - Get answers with extended thinking for complex reasoning tasks
+- **Stateful Conversations**: Maintain context across multiple queries via `interaction_id`
+- **Google Search Grounding**: Automatic web search for current/factual information
+- **URL Context**: Parse and analyze linked web pages
+- **Thinking Levels**: Control reasoning depth (minimal, low, medium, high)
 
-## Setup
+## Quick Start
 
-### 1. Get a Gemini API Key
-
-Get your API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-
-### 2. Install Dependencies
+### CLI Usage
 
 ```bash
-# Using UV (recommended)
-uv pip install -e .
+# Set API key
+export GEMINI_API_KEY=your_key_here
 
-# Or using pip
-pip install -e .
+# Quick search
+gemini-ask --search "latest AI news"
+
+# Get grounded answer
+gemini-ask --ask "What is quantum computing?"
+
+# Deep reasoning
+gemini-ask --think "Compare quantum vs classical computing"
+
+# Follow-up conversation
+gemini-ask --ask "Can you explain more?" -i <interaction_id>
 ```
 
-### 3. Configure Environment
+### MCP Server Usage
 
 ```bash
+cd server
+uv run python server.py
+```
+
+Then connect via MCP client with tools: `search`, `ask`, `ask_thinking`, `follow_up`, `upload_files`
+
+## Architecture
+
+The CLI and MCP Server are **independent** - use whichever fits your workflow:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  CLI Client (Rust) - gemini-ask                         │
+│  - Standalone binary, no dependencies                   │
+│  - Direct Gemini API calls via HTTP                     │
+│  - Use as Claude Code skill or command line             │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  Gemini Interactions API                                │
+│  - Model: gemini-3-flash-preview                        │
+│  - Automatic grounding (google_search, url_context)     │
+│  - Server-side conversation state                       │
+└─────────────────────┬───────────────────────────────────┘
+                      ▲
+                      │
+┌─────────────────────┴───────────────────────────────────┐
+│  MCP Server (Python/FastMCP) - optional                 │
+│  - For Claude Desktop, Cursor, etc.                     │
+│  - Same API features via MCP tools                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Installation
+
+### CLI (Rust)
+
+```bash
+cd cli
+cargo build --release
+# Binary at: ./target/release/gemini-ask
+```
+
+### MCP Server (Python)
+
+```bash
+cd server
+uv sync
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
+# Edit .env with your GEMINI_API_KEY
 ```
 
-## Usage
+## API Key
 
-### Run Locally
+Get your Gemini API key from: https://aistudio.google.com/app/apikey
+
+## Tools
+
+| Tool | Thinking Level | Description |
+|------|----------------|-------------|
+| `search` | minimal | Quick search, structured results (~3-7s) |
+| `ask` | medium | Balanced grounded answers (~8-12s) |
+| `ask_thinking` | high | Deep reasoning with grounding (~10-15s) |
+| `follow_up` | configurable | Continue previous conversation |
+| `upload_files` | N/A | Upload files for analysis |
+
+## Thinking Levels
+
+- **minimal**: Fast, low latency (~3-7s with grounding)
+- **low**: Light reasoning
+- **medium**: Balanced (default, ~10-15s with grounding)
+- **high**: Deep reasoning for complex problems (~10-15s)
+
+## Stateful Conversations
+
+The Interactions API maintains server-side state:
 
 ```bash
-uv run fastmcp run server.py
+# First query
+gemini-ask --ask "What is Stoicism?"
+# Returns: interaction_id: v1_abc123
+
+# Follow-up (Gemini remembers context)
+gemini-ask --ask "Who were its main practitioners?" -i v1_abc123
 ```
 
-### Interactive Development
-
-```bash
-fastmcp dev server.py
-```
-
-### Inspect Tools
-
-```bash
-fastmcp inspect server.py
-```
+Benefits:
+- No need to resend conversation history
+- Implicit caching (faster, cheaper)
+- 55-day retention (paid) / 1-day (free)
 
 ## Claude Desktop Integration
 
@@ -59,7 +137,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
   "mcpServers": {
     "gemini": {
       "command": "uv",
-      "args": ["run", "fastmcp", "run", "/absolute/path/to/gemini-interactions-mcp/server.py"],
+      "args": ["run", "python", "/path/to/gemini-interactions-mcp/server/server.py"],
       "env": {
         "GEMINI_API_KEY": "your_api_key_here"
       }
@@ -68,36 +146,22 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 }
 ```
 
-## Tools
+## Project Structure
 
-### `ask`
-
-Get AI-synthesized answers grounded with Google Search.
-
-**Parameters:**
-- `query` (required): Your question or prompt
-- `max_tokens` (default: 4096): Maximum response length
-
-**Returns:** AI-generated answer with source citations
-
-### `ask_thinking`
-
-Get answers with extended thinking for complex reasoning tasks.
-
-**Parameters:**
-- `query` (required): Your question or complex problem
-- `max_tokens` (default: 8192): Maximum response length
-
-**Returns:** AI-generated answer with reasoning process
-
-**Note:** The thinking model does not support grounding, so answers are based on the model's training data only.
-
-## Models Used
-
-| Tool | Model | Grounding |
-|------|-------|-----------|
-| `ask` | gemini-3-flash-preview | Yes (Google Search) |
-| `ask_thinking` | gemini-2.0-flash-thinking-exp-01-21 | No |
+```
+gemini-interactions-mcp/
+├── server/
+│   ├── server.py          # MCP server (Python/FastMCP)
+│   ├── test_server.py     # Server tests
+│   ├── pyproject.toml
+│   └── .env.example
+├── cli/
+│   ├── src/
+│   │   └── main.rs        # Rust CLI
+│   └── Cargo.toml
+├── skill.md               # Claude Code skill
+└── README.md
+```
 
 ## License
 
