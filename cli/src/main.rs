@@ -313,26 +313,10 @@ fn format_response(response: &InteractionResponse, format: &OutputFormat) -> Str
                 }
             }
 
-            // Add metadata
+            // Add follow-up instructions
             output.push_str("\n---\n");
             if let Some(id) = &response.id {
-                output.push_str(&format!("interaction_id: {}\n", id));
-            }
-            if let Some(status) = &response.status {
-                output.push_str(&format!("status: {}\n", status));
-            }
-            if let Some(usage) = &response.usage {
-                let input = usage.total_input_tokens.unwrap_or(0);
-                let output_tokens = usage.total_output_tokens.unwrap_or(0);
-                let reasoning = usage.total_reasoning_tokens.unwrap_or(0);
-                output.push_str(&format!(
-                    "tokens: {} in, {} out",
-                    input, output_tokens
-                ));
-                if reasoning > 0 {
-                    output.push_str(&format!(", {} reasoning", reasoning));
-                }
-                output.push('\n');
+                output.push_str(&format!("To follow up, use interaction_id: {}\n", id));
             }
 
             output
