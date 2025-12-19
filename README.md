@@ -75,7 +75,11 @@ The CLI and MCP Server are **independent** - use whichever fits your workflow:
 ### CLI (Rust)
 
 ```bash
+# Install globally
 cd cli
+cargo install --path .
+
+# Or build locally
 cargo build --release
 # Binary at: ./target/release/gemini-ask
 ```
