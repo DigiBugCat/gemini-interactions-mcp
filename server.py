@@ -7,13 +7,13 @@ grounded AI conversations with Google Search.
 Features:
 - Stateful conversations via interaction_id
 - Auto-grounding (model decides when to search)
-- Multiple thinking levels (minimal/low/medium/high)
-- File upload support
+- Thinking levels: minimal, medium, high
 """
 
 import os
 from typing import Optional, Literal
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 import httpx
 from dotenv import load_dotenv
 
@@ -22,6 +22,13 @@ load_dotenv()
 
 # Initialize FastMCP server
 mcp = FastMCP("Gemini Research")
+
+_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+)
 
 # Get API key from environment
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -226,7 +233,7 @@ def _format_response(result: dict) -> str:
 
 # MCP Tools
 
-@mcp.tool
+@mcp.tool(annotations=_TOOL_ANNOTATIONS)
 def search(
     query: str,
     max_results: int = 10,
@@ -263,7 +270,7 @@ Return up to {max_results} results. No additional commentary or analysis."""
     return _format_response(result)
 
 
-@mcp.tool
+@mcp.tool(annotations=_TOOL_ANNOTATIONS)
 def ask(
     query: str,
     interaction_id: Optional[str] = None,
@@ -294,7 +301,7 @@ def ask(
     return _format_response(result)
 
 
-@mcp.tool
+@mcp.tool(annotations=_TOOL_ANNOTATIONS)
 def ask_thinking(
     query: str,
     interaction_id: Optional[str] = None,

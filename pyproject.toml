@@ -1,14 +1,17 @@
 [project]
-name = "gemini-interactions-server"
+name = "gemini-mcp"
 version = "0.1.0"
 description = "FastMCP server for Gemini Interactions API with grounding"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=2.0.0",
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/DigiBugCat/gemini-interactions-mcp"
 
 [build-system]
 requires = ["hatchling"]

@@ -482,7 +482,7 @@ wheels = [
 ]
 
 [[package]]
-name = "gemini-interactions-mcp"
+name = "gemini-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
