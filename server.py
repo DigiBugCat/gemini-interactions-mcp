@@ -11,6 +11,7 @@ Features:
 """
 
 import os
+import re
 from typing import Optional, Literal
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -204,12 +205,36 @@ def _resolve_all_urls(sources: list) -> list:
     return resolved
 
 
+def _resolve_text_urls(text: str) -> str:
+    """Resolve redirect URLs embedded in the response text."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    redirect_pattern = r'https://vertexaisearch\.cloud\.google\.com/grounding-api-redirect/[^\s\)\]\"\'<>]+'
+    urls = list(set(re.findall(redirect_pattern, text)))
+    if not urls:
+        return text
+
+    url_map = {}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_resolve_redirect_url, url): url for url in urls}
+        for future in as_completed(futures):
+            original = futures[future]
+            try:
+                url_map[original] = future.result()
+            except Exception:
+                url_map[original] = original
+
+    for original, resolved in url_map.items():
+        text = text.replace(original, resolved)
+    return text
+
+
 def _format_response(result: dict) -> str:
     """Format the parsed result into a readable string."""
     if "error" in result:
         return f"Error: {result['error']}"
 
-    output = [result.get("text", "")]
+    output = [_resolve_text_urls(result.get("text", ""))]
 
     # Add sources (resolve redirect URLs in parallel)
     sources = result.get("sources", [])
@@ -237,6 +262,7 @@ def _format_response(result: dict) -> str:
 def search(
     query: str,
     max_results: int = 10,
+    thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal",
 ) -> str:
     """
     Quick web search with minimal thinking. Returns structured results.
@@ -246,6 +272,7 @@ def search(
     Args:
         query: Search query
         max_results: Maximum number of results to return (default: 10)
+        thinking_level: Reasoning depth - minimal (fastest), low, medium, or high (default: minimal)
 
     Returns:
         Structured search results with titles, URLs, and snippets
@@ -262,7 +289,7 @@ Return up to {max_results} results. No additional commentary or analysis."""
 
     result = _create_interaction(
         input_content=query,
-        thinking_level="minimal",
+        thinking_level=thinking_level,
         system_instruction=system_instruction,
         max_tokens=4096,
     )
