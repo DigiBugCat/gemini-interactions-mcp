@@ -40,7 +40,7 @@ if not GEMINI_API_KEY:
 
 # API configuration
 INTERACTIONS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
-MODEL = "gemini-3-flash-preview"
+MODEL = "gemini-3.1-flash-lite-preview"
 
 
 def _create_interaction(
@@ -292,7 +292,7 @@ def ask(
     """
     result = _create_interaction(
         input_content=query,
-        thinking_level="medium",
+        thinking_level="high",
         previous_interaction_id=interaction_id,
         max_tokens=max_tokens,
         system_instruction="Be concise and factual. Cite sources when using web information.",
@@ -300,36 +300,6 @@ def ask(
 
     return _format_response(result)
 
-
-@mcp.tool(annotations=_TOOL_ANNOTATIONS)
-def ask_thinking(
-    query: str,
-    interaction_id: Optional[str] = None,
-    max_tokens: int = 16384,
-) -> str:
-    """
-    Get answers with deep reasoning for complex problems.
-
-    Uses high thinking level for multi-step analysis and complex questions.
-    To follow up on a previous response, pass the interaction_id from that response.
-
-    Args:
-        query: Your complex question or problem
-        interaction_id: Pass the interaction_id from a previous response to continue that conversation
-        max_tokens: Maximum response length (default: 16384)
-
-    Returns:
-        Detailed answer with reasoning. Use the returned interaction_id to ask follow-up questions.
-    """
-    result = _create_interaction(
-        input_content=query,
-        thinking_level="high",
-        previous_interaction_id=interaction_id,
-        max_tokens=max_tokens,
-        system_instruction="Think step by step. Be thorough and cite sources.",
-    )
-
-    return _format_response(result)
 
 
 if __name__ == "__main__":
