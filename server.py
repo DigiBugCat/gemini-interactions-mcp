@@ -262,7 +262,6 @@ def _format_response(result: dict) -> str:
 def search(
     query: str,
     max_results: int = 10,
-    thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal",
 ) -> str:
     """
     Quick web search with minimal thinking. Returns structured results.
@@ -272,7 +271,6 @@ def search(
     Args:
         query: Search query
         max_results: Maximum number of results to return (default: 10)
-        thinking_level: Reasoning depth - minimal (fastest), low, medium, or high (default: minimal)
 
     Returns:
         Structured search results with titles, URLs, and snippets
@@ -289,7 +287,7 @@ Return up to {max_results} results. No additional commentary or analysis."""
 
     result = _create_interaction(
         input_content=query,
-        thinking_level=thinking_level,
+        thinking_level="minimal",
         system_instruction=system_instruction,
         max_tokens=4096,
     )
